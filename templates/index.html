@@ -1,0 +1,921 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>RetinaScan</title>
+    
+    <link rel="icon" type="image/svg+xml" href="{{ url_for('static', filename='logo.svg') }}">
+    <link rel="apple-touch-icon" sizes="180x180" href="{{ url_for('static', filename='logo.png') }}">
+    <link rel="manifest" href="{{ url_for('static', filename='manifest.json') }}">
+
+    <meta name="apple-mobile-web-app-title" content="RetinaScan">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="theme-color" id="theme-color-meta" content="#fbf8ff">
+
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = { darkMode: 'class', }
+        try {
+            const savedTheme = localStorage.getItem('theme');
+            const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+            if (savedTheme === 'dark' || (!savedTheme && prefersDark)) {
+                document.documentElement.classList.add('dark');
+                const metaTheme = document.getElementById('theme-color-meta');
+                if (metaTheme) metaTheme.setAttribute('content', '#111113');
+            } else {
+                document.documentElement.classList.remove('dark');
+            }
+        } catch (e) {
+            if (window.matchMedia('(prefers-color-scheme: dark)').matches) document.documentElement.classList.add('dark');
+        }
+    </script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=SF+Pro+Display:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
+
+        :root {
+            color-scheme: light;
+            --bg-grad-start: #fbf8ff; --bg-grad-end: #e5d1ff;
+            --text-main: #2d004d; --text-secondary: #5a2e85;
+            --glass-bg: rgba(255, 255, 255, 0.6); --glass-border: rgba(255, 255, 255, 0.8);
+            --glass-shadow: 0 20px 50px rgba(0, 0, 0, 0.1); --btn-bg: rgba(255, 255, 255, 0.6);
+        }
+
+        html.dark {
+            color-scheme: dark;
+            --bg-grad-start: #111113; --bg-grad-end: #050505;
+            --text-main: #f3e8ff; --text-secondary: #c084fc; 
+            --glass-bg: rgba(255, 255, 255, 0.08); --glass-border: rgba(255, 255, 255, 0.15);
+            --glass-shadow: 0 20px 60px rgba(0, 0, 0, 0.6); --btn-bg: rgba(255, 255, 255, 0.06);
+        }
+
+        body {
+            font-family: 'SF Pro Display', -apple-system, BlinkMacSystemFont, sans-serif;
+            background: linear-gradient(180deg, var(--bg-grad-start), var(--bg-grad-end));
+            background-attachment: fixed; color: var(--text-main); min-height: 100vh; margin: 0; overflow-x: hidden; transition: all 0.6s;
+        }
+
+        #initial-loader { background: linear-gradient(180deg, var(--bg-grad-start), var(--bg-grad-end)); transition: opacity 0.6s; }
+        @keyframes jiggle { 0%, 100% { transform: scale(1) translateY(0); } 15% { transform: scale(1.15) translateY(-10px) rotate(-8deg); } 30% { transform: scale(0.9) translateY(4px) rotate(6deg); } 45% { transform: scale(1.08) translateY(-4px) rotate(-4deg); } 60% { transform: scale(0.95) translateY(2px) rotate(2deg); } 75% { transform: scale(1.02) translateY(-1px) rotate(-1deg); } }
+        .jiggle-element { animation: jiggle 2.5s infinite; }
+
+        .bg-blob { position: fixed; border-radius: 50%; filter: blur(90px); z-index: -1; opacity: 0.5; animation: floatBlob 15s infinite alternate ease-in-out; }
+        .blob-1 { top: -10%; left: -20%; width: 500px; height: 500px; background: #a855f7; }
+        .blob-2 { bottom: -10%; right: -20%; width: 400px; height: 400px; background: #ec4899; animation-delay: -5s; }
+        html.dark .blob-1 { opacity: 0.2; background: #581c87; } html.dark .blob-2 { opacity: 0.2; background: #831843; }
+        @keyframes floatBlob { 0% { transform: translate(0, 0) scale(1); } 100% { transform: translate(50px, 80px) scale(1.1); } }
+
+        .glass-island { background: var(--glass-bg); backdrop-filter: blur(40px); border: 1px solid var(--glass-border); box-shadow: var(--glass-shadow); border-radius: 2.5rem; transition: all 0.5s; }
+        
+        .inner-btn { background: var(--btn-bg); border: 1px solid rgba(255, 255, 255, 0.15); border-radius: 2.2rem; padding: 1.6rem; display: flex; align-items: center; gap: 1.5rem; cursor: pointer; transition: all 0.4s; }
+        .inner-btn:hover:not(.disabled) { transform: scale(1.04) translateY(-6px); background: rgba(255, 255, 255, 0.25); box-shadow: 0 15px 35px rgba(124, 58, 237, 0.15); }
+        html.dark .inner-btn:hover:not(.disabled) { background: rgba(255, 255, 255, 0.12); box-shadow: 0 15px 35px rgba(217, 70, 239, 0.2); }
+        .inner-btn:active:not(.disabled) { transform: scale(0.96) translateY(0); }
+        .inner-btn.disabled { opacity: 0.5; cursor: not-allowed; filter: grayscale(1); }
+
+        .icon-vibrant { transition: all 0.4s ease; }
+        .icon-purple { color: #6d28d9; }
+        .icon-pink { color: #db2777; }
+        .icon-blue { color: #2563eb; }
+        html.dark .icon-purple { color: #a855f7; filter: drop-shadow(0 0 12px rgba(168, 85, 247, 0.6)); }
+        html.dark .icon-pink { color: #f472b6; filter: drop-shadow(0 0 12px rgba(244, 114, 182, 0.6)); }
+        html.dark .icon-blue { color: #60a5fa; filter: drop-shadow(0 0 12px rgba(96, 165, 250, 0.6)); }
+        .inner-btn:hover:not(.disabled) .icon-vibrant { transform: scale(1.2) rotate(-5deg); }
+
+        /* FORM INPUT STYLES */
+        .glass-input {
+            width: 100%; padding: 0.9rem 1.2rem; border-radius: 1.2rem; margin-top: 0.3rem;
+            background: rgba(0,0,0,0.03); border: 1px solid rgba(0,0,0,0.1);
+            color: var(--text-main); font-weight: 600; font-size: 0.95rem; outline: none; transition: all 0.3s;
+            -webkit-appearance: none;
+        }
+        html.dark .glass-input { background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); color: white; }
+        .glass-input:focus { border-color: #a855f7; box-shadow: 0 0 0 3px rgba(168,85,247,0.2); background: rgba(255,255,255,0.5); }
+        html.dark .glass-input:focus { background: rgba(0,0,0,0.2); }
+        .glass-input option { color: black; } 
+
+        .status-badge { display: inline-flex; align-items: center; gap: 6px; padding: 6px 14px; background: rgba(255, 255, 255, 0.25); border: 1px solid rgba(255, 255, 255, 0.4); border-radius: 99px; font-size: 0.7rem; font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase; color: var(--text-secondary); backdrop-filter: blur(10px); }
+        html.dark .status-badge { background: rgba(255, 255, 255, 0.1); border: 1px solid rgba(255, 255, 255, 0.15); }
+        .status-dot { width: 8px; height: 8px; background: #22c55e; border-radius: 50%; box-shadow: 0 0 10px #22c55e; animation: pulse 2s infinite; }
+        @keyframes pulse { 0% { opacity: 1; } 50% { opacity: 0.5; } 100% { opacity: 1; } }
+
+        .sub-label { color: var(--text-secondary); font-weight: 700; text-transform: uppercase; font-size: 0.65rem; letter-spacing: 0.12em; }
+        .logo-shimmer { background-image: linear-gradient(90deg, #6d28d9, #d946ef, #6d28d9); background-size: 200% auto; color: transparent; -webkit-background-clip: text; background-clip: text; animation: shimmer 4s linear infinite; }
+        html.dark .logo-shimmer { background-image: linear-gradient(90deg, #c084fc, #e879f9, #c084fc); }
+        @keyframes shimmer { to { background-position: 200% center; } }
+
+        /* Adjusted view-section to perfectly center vertically and horizontally */
+        .view-section { display: none; width: 100%; max-width: 28rem; flex-direction: column; align-items: center; justify-content: center; margin: auto; opacity: 0; transform: translateY(10px); transition: opacity 0.5s, transform 0.5s; }
+        .view-section.active { display: flex; opacity: 1; transform: translateY(0); }
+
+        #scanning-section { display: none; margin-top: 1.5rem; opacity: 0; transform: scale(0.95); transition: all 0.5s; }
+        #scanning-section.show { display: flex; opacity: 1; transform: scale(1); }
+        .progress-track { width: 100%; height: 6px; background: rgba(0,0,0,0.08); border-radius: 99px; overflow: hidden; }
+        html.dark .progress-track { background: rgba(255,255,255,0.15); }
+        .progress-fill { height: 100%; width: 0%; background: linear-gradient(90deg, #7c3aed, #d946ef); transition: width 0.4s; }
+
+        /* Scaled down image frame to prevent scrolling on small screens */
+        .result-image-frame { position: relative; width: 130px; height: 130px; border-radius: 2rem; border: 4px solid var(--glass-border); margin-bottom: -30px; z-index: 20; box-shadow: 0 15px 40px rgba(0,0,0,0.25); background: #111; cursor: pointer; transition: transform 0.2s; }
+        .result-image-frame:hover { transform: scale(1.05); }
+        .result-image-frame img { border-radius: inherit; }
+        
+        /* Modal Glass styles */
+        .modal-glass { background: rgba(30, 30, 30, 0.45); backdrop-filter: blur(40px); border: 1px solid rgba(255, 255, 255, 0.2); border-radius: 2rem; box-shadow: 0 25px 60px rgba(0,0,0,0.5); }
+        .img-magnifier-glass { position: absolute; border: 3px solid rgba(255,255,255,0.8); border-radius: 50%; cursor: none; width: 100px; height: 100px; display: none; box-shadow: 0 10px 20px rgba(0,0,0,0.5); pointer-events: none; z-index: 30; }
+
+        @keyframes scan { 0% { top: 0%; opacity: 0; } 15% { opacity: 1; } 85% { opacity: 1; } 100% { top: 100%; opacity: 0; } }
+
+        /* PRINT STYLES - COMPACT 1 PAGE LAYOUT */
+        .print-details { display: none; }
+        @media print {
+            @page { size: A4 portrait; margin: 5mm; }
+            
+            body { background: white !important; color: black !important; padding: 0 !important; margin: 0 !important; }
+            .bg-blob, #theme-toggle-btn, .print-hide, nav, footer, #image-modal, #global-back-btn { display: none !important; }
+            
+            .glass-island { box-shadow: none !important; border: 1px solid #ccc !important; background: white !important; backdrop-filter: none !important; margin: 0 auto !important; width: 100% !important; max-width: 100% !important; border-radius: 12px !important; padding: 10px 20px !important; }
+            * { text-shadow: none !important; }
+            h2, p, span, div { color: black !important; }
+            
+            .view-section { display: none !important; }
+            .view-section.active { display: block !important; opacity: 1 !important; transform: none !important; max-width: 100% !important; }
+
+            /* Extremely Compact header */
+            .print-header { display: block !important; text-align: center; margin-bottom: 10px !important; border-bottom: 2px solid #000; padding-bottom: 5px !important; }
+            .print-header h1 { font-size: 20px !important; margin-bottom: 2px !important; font-weight: bold; font-family: 'Times New Roman', serif; text-transform: uppercase; letter-spacing: 1px; }
+            .print-header p { font-size: 11px !important; color: #444 !important; font-family: 'Times New Roman', serif; margin: 2px 0 !important; }
+            
+            /* Retina Scanner Image */
+            .result-image-frame { margin: 0 auto 10px auto !important; width: 140px !important; height: 140px !important; border: 2px solid #000 !important; border-radius: 10px !important; box-shadow: none !important; display: block !important; page-break-inside: avoid; }
+            
+            /* Remove DR Report Icon Circle */
+            #result-icon-bg { display: none !important; }
+
+            /* Center the calculator diagnosis icon */
+            #calc-icon-bg { width: 35px !important; height: 35px !important; margin: 0 auto 5px auto !important; border: 2px solid #000 !important; box-shadow: none !important; background: transparent !important; border-radius: 50% !important; display: flex !important; align-items: center; justify-content: center; }
+            #calc-icon-bg i { color: black !important; width: 18px !important; height: 18px !important; }
+            
+            /* Diagnosis Text styling */
+            #calc-diagnosis, #result-diagnosis { font-size: 18px !important; margin-bottom: 2px !important; text-align: center !important; font-weight: 800 !important; margin-top: 5px !important; width: 100% !important;}
+            #calc-severity, #result-severity { font-size: 11px !important; margin-bottom: 5px !important; text-align: center !important; font-weight: bold !important; letter-spacing: 0.08em !important; text-transform: uppercase !important; color: #333 !important; width: 100% !important;}
+            #calc-desc, #result-desc { font-size: 11px !important; margin-bottom: 10px !important; text-align: center !important; line-height: 1.3 !important; max-width: 100% !important; color: #222 !important; padding: 0 10px; width: 100% !important;}
+
+            .bg-black\/5, .bg-blue-500\/10 { background: white !important; border: 1px solid #aaa !important; }
+            
+            /* Medical details content scaled down to guarantee 1 page */
+            .print-details { display: block !important; margin-top: 5px !important; text-align: left; border-top: 2px solid #000; padding-top: 10px !important; page-break-inside: avoid;}
+            .print-details h3 { font-size: 12px !important; font-weight: bold; margin-top: 10px !important; margin-bottom: 3px !important; color: #000 !important; text-transform: uppercase; border-bottom: 1px solid #eee; padding-bottom: 3px; }
+            .print-details p { font-size: 11px !important; line-height: 1.3 !important; color: #111 !important; margin-bottom: 5px !important; white-space: pre-wrap; }
+        }
+        .print-header { display: none; }
+    </style>
+</head>
+<body>
+    <!-- INITIAL LOADING SCREEN -->
+    <div id="initial-loader" class="fixed inset-0 z-[999] flex flex-col items-center justify-center">
+        <div class="relative flex flex-col items-center">
+            <div class="mb-4 relative">
+                <div class="absolute inset-0 bg-purple-500 blur-2xl opacity-40 rounded-full animate-pulse"></div>
+                <!-- SVG LOGO -->
+                <svg width="76" height="76" viewBox="0 0 512 512" fill="none" xmlns="http://www.w3.org/2000/svg" class="relative z-10 drop-shadow-2xl">
+                    <defs>
+                        <linearGradient id="loadMainGradient" x1="0" y1="0" x2="512" y2="512" gradientUnits="userSpaceOnUse"><stop offset="0%" stop-color="#7c3aed"/><stop offset="100%" stop-color="#d946ef"/></linearGradient>
+                        <linearGradient id="loadIrisGradient" x1="256" y1="150" x2="256" y2="362" gradientUnits="userSpaceOnUse"><stop offset="0%" stop-color="#4c1d95"/><stop offset="100%" stop-color="#7c3aed"/></linearGradient>
+                    </defs>
+                    <rect x="32" y="32" width="448" height="448" rx="110" fill="url(#loadMainGradient)" />
+                    <path d="M256 160C176 160 110 210 80 256C110 302 176 352 256 352C336 352 402 302 432 256C402 210 336 160 256 160Z" fill="white"/>
+                    <circle cx="256" cy="256" r="64" fill="url(#loadIrisGradient)"/>
+                    <circle cx="256" cy="256" r="28" fill="#1a0a33"/>
+                    <circle cx="276" cy="236" r="10" fill="white" fill-opacity="0.9"/>
+                    <ellipse cx="256" cy="110" rx="160" ry="80" fill="white" fill-opacity="0.15"/>
+                    <g stroke="white" stroke-width="8" stroke-linecap="round" stroke-opacity="0.9">
+                        <path d="M140 140 L110 140 L110 170" fill="none"/><path d="M372 140 L402 140 L402 170" fill="none"/><path d="M140 372 L110 372 L110 342" fill="none"/><path d="M372 372 L402 372 L402 342" fill="none"/>
+                    </g>
+                    <rect x="110" y="254" width="292" height="4" rx="2" fill="white" fill-opacity="0.6"/>
+                </svg>
+            </div>
+            <h2 class="text-xl font-black tracking-tight logo-shimmer mb-6">RetinaScan</h2>
+            <div class="jiggle-element mb-6 flex items-center justify-center">
+                <div class="relative w-12 h-12 flex items-center justify-center">
+                    <div class="absolute inset-0 rounded-2xl bg-gradient-to-tr from-purple-600 to-pink-500 opacity-60 blur-md animate-pulse"></div>
+                    <div class="relative w-10 h-10 rounded-2xl bg-gradient-to-tr from-purple-500 to-pink-400 border border-white/40 shadow-xl flex items-center justify-center backdrop-blur-sm">
+                        <div class="w-3 h-3 rounded-full bg-white shadow-[0_0_12px_rgba(255,255,255,1)] animate-ping"></div>
+                        <div class="absolute w-3 h-3 rounded-full bg-white shadow-[0_0_12px_rgba(255,255,255,1)]"></div>
+                    </div>
+                </div>
+            </div>
+            <p class="text-[10px] font-mono opacity-50 uppercase tracking-widest">Initializing Environment</p>
+        </div>
+    </div>
+
+    <!-- BACKGROUND BLOBS -->
+    <div class="bg-blob blob-1"></div><div class="bg-blob blob-2"></div>
+
+    <button id="theme-toggle-btn" onclick="toggleTheme()" class="fixed top-6 right-6 z-50 p-2.5 rounded-full glass-island hover:scale-110 active:scale-95 transition-all shadow-lg backdrop-blur-md">
+        <i data-lucide="moon" id="theme-btn-icon" class="w-4 h-4 text-purple-800 dark:text-purple-300"></i>
+    </button>
+
+    <!-- Global Back Button (Fixed outside transforming containers to avoid scrolling) -->
+    <button id="global-back-btn" onclick="switchView('view-home')" class="hidden fixed top-6 left-6 z-50 p-2.5 rounded-full glass-island hover:scale-110 active:scale-95 transition-all shadow-lg backdrop-blur-md print-hide">
+        <i data-lucide="arrow-left" class="w-4 h-4 text-blue-800 dark:text-blue-300"></i>
+    </button>
+
+    <!-- Removed heavy top/bottom padding to allow flexbox to vertically center the active view beautifully -->
+    <main class="relative z-10 w-full min-h-[100dvh] flex flex-col justify-center items-center py-6 px-4">
+        
+        <!-- VIEW 1: HOME -->
+        <div id="view-home" class="view-section active">
+            <div class="text-center mb-8 flex flex-col items-center gap-4">
+                <!-- SVG LOGO -->
+                <svg width="80" height="80" viewBox="0 0 512 512" fill="none" xmlns="http://www.w3.org/2000/svg" class="drop-shadow-2xl hover:scale-105 transition-transform duration-500">
+                    <defs>
+                        <linearGradient id="mainGradient" x1="0" y1="0" x2="512" y2="512" gradientUnits="userSpaceOnUse">
+                            <stop offset="0%" stop-color="#7c3aed"/>
+                            <stop offset="100%" stop-color="#d946ef"/>
+                        </linearGradient>
+                        <linearGradient id="irisGradient" x1="256" y1="150" x2="256" y2="362" gradientUnits="userSpaceOnUse">
+                            <stop offset="0%" stop-color="#4c1d95"/>
+                            <stop offset="100%" stop-color="#7c3aed"/>
+                        </linearGradient>
+                    </defs>
+                    <rect x="32" y="32" width="448" height="448" rx="110" fill="url(#mainGradient)" />
+                    <path d="M256 160C176 160 110 210 80 256C110 302 176 352 256 352C336 352 402 302 432 256C402 210 336 160 256 160Z" fill="white"/>
+                    <circle cx="256" cy="256" r="64" fill="url(#irisGradient)"/>
+                    <circle cx="256" cy="256" r="28" fill="#1a0a33"/>
+                    <circle cx="276" cy="236" r="10" fill="white" fill-opacity="0.9"/>
+                    <ellipse cx="256" cy="110" rx="160" ry="80" fill="white" fill-opacity="0.15"/>
+                    <g stroke="white" stroke-width="8" stroke-linecap="round" stroke-opacity="0.9">
+                        <path d="M140 140 L110 140 L110 170" fill="none"/>
+                        <path d="M372 140 L402 140 L402 170" fill="none"/>
+                        <path d="M140 372 L110 372 L110 342" fill="none"/>
+                        <path d="M372 372 L402 372 L402 342" fill="none"/>
+                    </g>
+                    <rect x="110" y="254" width="292" height="4" rx="2" fill="white" fill-opacity="0.6"/>
+                </svg>
+                
+                <div>
+                    <h1 class="text-4xl font-black mb-2"><span class="logo-shimmer">RetinaScan</span></h1>
+                    <div class="status-badge"><span class="status-dot"></span>Multi-Model AI</div>
+                </div>
+            </div>
+
+            <div class="glass-island p-8 flex flex-col gap-5 w-full max-w-[420px]" id="selection-island">
+                <div onclick="triggerUpload()" id="btn-upload" class="inner-btn group">
+                    <i data-lucide="image" class="w-8 h-8 icon-vibrant icon-pink"></i>
+                    <div class="text-left"><span class="block text-xl font-bold">Upload Scan</span><span class="sub-label opacity-70">FUNDUS LIBRARY</span></div>
+                </div>
+                
+                <div onclick="switchView('view-calculator')" id="btn-calculator" class="inner-btn group">
+                    <i data-lucide="clipboard-list" class="w-8 h-8 icon-vibrant icon-blue"></i>
+                    <div class="text-left"><span class="block text-xl font-bold">Clinical Risk Form</span><span class="sub-label opacity-70">DIABETES PREDICTOR</span></div>
+                </div>
+            </div>
+
+            <div class="mt-6 w-full max-w-[420px] glass-island p-5 flex items-start gap-4 print-hide">
+                <i data-lucide="lightbulb" class="w-5 h-5 text-yellow-500 mt-1 flex-shrink-0"></i>
+                <div>
+                    <h3 class="font-bold text-sm mb-1">Quick Tip</h3>
+                    <p class="text-xs opacity-70 leading-relaxed">Upload a clear, glare-free image for accurate retinal analysis, or use the clinical form to instantly calculate your diabetes risk.</p>
+                </div>
+            </div>
+
+            <footer class="mt-auto pt-8 text-center opacity-40 print-hide"><p class="text-[10px] font-mono uppercase tracking-widest">Powered by PyTorch & Random Forest</p></footer>
+
+            <!-- SCAN LOADER -->
+            <div id="scanning-section" class="w-full max-w-[420px] glass-island p-8 flex flex-col items-center">
+                <div class="relative w-56 h-56 rounded-[2rem] overflow-hidden shadow-2xl mb-6 bg-black/5 dark:bg-black/40 border border-black/10 dark:border-white/20">
+                    <img id="scan-preview" src="" class="w-full h-full object-cover opacity-90" />
+                    <div id="scan-laser" class="absolute top-0 left-0 w-full h-1.5 bg-purple-400 shadow-[0_0_25px_#c084fc] animate-[scan_2s_linear_infinite]"></div>
+                </div>
+                <div class="w-full text-center">
+                    <h2 id="scan-status" class="text-xs font-black tracking-widest text-purple-700 dark:text-purple-300 mb-2 uppercase">Processing</h2>
+                    <p id="scan-detail" class="text-[10px] font-mono opacity-60 mb-4">Initializing neural matrix...</p>
+                    <div class="progress-track"><div id="scan-bar" class="progress-fill"></div></div>
+                </div>
+            </div>
+            <input type="file" id="file-input" class="hidden" accept="image/*" onchange="handleFileSelect(event)" />
+        </div>
+
+        <!-- VIEW 2: RETINA RESULTS -->
+        <div id="view-result" class="view-section">
+            <div class="print-header">
+                <h1>RETINASCAN MEDICAL DIAGNOSTICS</h1>
+                <p><strong>Patient ID:</strong> <span id="print-id">---</span></p>
+                <p><strong>Date of Analysis:</strong> <span id="print-date">---</span></p>
+            </div>
+
+            <!-- Image included in print layout, hover overlay is print-hide -->
+            <div class="result-image-frame group relative mx-auto" onclick="openImageModal()">
+                <div class="absolute inset-0 bg-black/40 flex flex-col items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity z-10 rounded-[1.6rem] print-hide">
+                    <i data-lucide="maximize-2" class="w-8 h-8 text-white"></i>
+                    <span class="text-white text-xs font-bold mt-2 uppercase tracking-widest drop-shadow-md">View Full Screen</span>
+                </div>
+                <img id="result-photo" src="" class="w-full h-full object-cover transition-opacity duration-300" />
+            </div>
+
+            <!-- Reduced top padding slightly to ensure it doesn't cause scrolling on small screens -->
+            <div class="glass-island p-6 pt-10 w-full flex flex-col items-center">
+                <div id="result-icon-bg" class="w-14 h-14 rounded-[1.5rem] flex items-center justify-center mb-3 shadow-xl transition-colors duration-500">
+                    <i id="result-icon" data-lucide="activity" class="w-7 h-7 text-white"></i>
+                </div>
+                
+                <h2 id="result-diagnosis" class="text-3xl font-bold mb-1 text-center tracking-tight w-full block mx-auto">--</h2>
+                <p id="result-severity" class="sub-label text-purple-600 dark:text-purple-400 mb-4 font-black text-xs text-center w-full block mx-auto">ANALYSIS COMPLETE</p>
+                <p id="result-desc" class="text-sm opacity-70 mb-6 font-medium text-center leading-relaxed max-w-[260px] w-full block mx-auto">--</p>
+                
+                <div class="w-full bg-black/5 dark:bg-white/5 p-4 rounded-2xl border border-black/10 dark:border-white/10 text-center mb-4 shadow-inner print-hide">
+                    <p class="sub-label mb-1 opacity-50">AI Confidence Score</p>
+                    <p id="result-conf" class="text-2xl font-mono font-bold">--%</p>
+                </div>
+
+                <div class="w-full bg-blue-500/10 dark:bg-blue-400/10 border border-blue-500/20 p-4 rounded-2xl mb-6 flex items-start gap-3 text-left shadow-sm print-hide">
+                    <i data-lucide="info" class="w-5 h-5 text-blue-600 dark:text-blue-400 mt-0.5 flex-shrink-0"></i>
+                    <div>
+                        <p class="sub-label text-blue-600 dark:text-blue-400 mb-1">Recommended Action</p>
+                        <p id="result-action" class="text-sm font-medium leading-relaxed opacity-90">--</p>
+                    </div>
+                </div>
+
+                <!-- MEDICAL DETAILS (Visible Only on Print) -->
+                <div class="print-details" id="print-medical-details">
+                    <h3>Disease Description & Stage</h3>
+                    <p id="print-desc-long">---</p>
+                    
+                    <h3>Recommended Management & Prevention</h3>
+                    <p id="print-prevention">---</p>
+                    
+                    <h3>Medical Interventions & Medicines</h3>
+                    <p id="print-meds">---</p>
+                </div>
+
+                <div class="flex gap-3 w-full mb-3 print-hide">
+                    <button onclick="toggleHeatmap()" id="btn-main-heatmap" class="flex-[1] py-3.5 rounded-2xl bg-purple-500/10 hover:bg-purple-500/20 text-purple-700 dark:text-purple-300 font-bold text-sm border border-purple-500/20 transition-all hidden">
+                        <i data-lucide="eye" class="w-4 h-4 inline-block -mt-0.5 mr-1"></i> Heatmap
+                    </button>
+                    <!-- TIMEOUT ENTIRELY REMOVED to prevent "automatic printing" blocks -->
+                    <button onclick="window.print()" class="flex-[1] py-3.5 rounded-2xl bg-blue-500/10 hover:bg-blue-500/20 text-blue-700 dark:text-blue-300 font-bold text-sm border border-blue-500/20 transition-all">
+                        <i data-lucide="printer" class="w-4 h-4 inline-block -mt-0.5 mr-1"></i> Print Report
+                    </button>
+                </div>
+
+                <button onclick="resetApp()" class="w-full py-4 rounded-2xl bg-purple-600 hover:bg-purple-700 text-white font-bold text-base shadow-xl shadow-purple-900/20 active:scale-95 transition-all print-hide">
+                    Done
+                </button>
+            </div>
+        </div>
+
+        <!-- VIEW 4: DIABETES CALCULATOR FORM -->
+        <div id="view-calculator" class="view-section">
+
+            <!-- Big, isolated title that will not overlap -->
+            <div class="text-center mb-6 mt-4 print-hide">
+                <h2 class="text-3xl font-black tracking-tight">Clinical Risk Form</h2>
+                <div class="status-badge mt-2"><span class="status-dot"></span>Diabetes Predictor</div>
+            </div>
+
+            <div class="glass-island p-8 w-full max-w-[420px]">
+                <form id="diabetes-form" onsubmit="submitDiabetesForm(event)" class="flex flex-col gap-5">
+                    
+                    <div class="grid grid-cols-2 gap-4">
+                        <div>
+                            <label class="block sub-label mb-1">Gender</label>
+                            <select id="calc-gender" required class="glass-input">
+                                <option value="" disabled selected>Select</option>
+                                <option value="Male">Male</option>
+                                <option value="Female">Female</option>
+                                <option value="Other">Other</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block sub-label mb-1">Age</label>
+                            <input type="number" id="calc-age" required min="1" max="120" step="1" class="glass-input" placeholder="e.g. 45">
+                        </div>
+                    </div>
+
+                    <div class="grid grid-cols-2 gap-4">
+                        <div>
+                            <label class="block sub-label mb-1">Hypertension</label>
+                            <select id="calc-hyper" required class="glass-input">
+                                <option value="" disabled selected>Select</option>
+                                <option value="0">No</option>
+                                <option value="1">Yes</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block sub-label mb-1">Heart Disease</label>
+                            <select id="calc-heart" required class="glass-input">
+                                <option value="" disabled selected>Select</option>
+                                <option value="0">No</option>
+                                <option value="1">Yes</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="grid grid-cols-2 gap-4">
+                        <div>
+                            <label class="block sub-label mb-1">Smoking History</label>
+                            <select id="calc-smoke" required class="glass-input">
+                                <option value="" disabled selected>Select</option>
+                                <option value="never">Never Smoked</option>
+                                <option value="current">Currently Smoke</option>
+                                <option value="former">Used to Smoke Regularly (Quit)</option>
+                                <option value="not current">Don't Smoke Now (Past habit unclear)</option>
+                                <option value="ever">Tried it in the past</option>
+                                <option value="No Info">Prefer not to say / Unknown</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block sub-label mb-1">BMI</label>
+                            <input type="number" id="calc-bmi" required min="10" max="80" step="0.01" class="glass-input" placeholder="e.g. 27.50">
+                        </div>
+                    </div>
+
+                    <div class="grid grid-cols-2 gap-4">
+                        <div>
+                            <label class="block sub-label mb-1">HbA1c Level (%)</label>
+                            <input type="number" id="calc-hba1c" required min="3" max="15" step="0.1" class="glass-input" placeholder="e.g. 6.5">
+                        </div>
+                        <div>
+                            <label class="block sub-label mb-1">Blood Glucose</label>
+                            <input type="number" id="calc-glucose" required min="50" max="400" step="1" class="glass-input" placeholder="e.g. 140">
+                        </div>
+                    </div>
+
+                    <button type="submit" id="btn-submit-calc" class="mt-4 w-full py-4 rounded-2xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-base shadow-xl active:scale-95 transition-all flex justify-center items-center gap-2">
+                        <span>Calculate Risk</span>
+                        <i data-lucide="calculator" class="w-5 h-5"></i>
+                    </button>
+                </form>
+            </div>
+        </div>
+
+        <!-- VIEW 5: CALCULATOR RESULT -->
+        <div id="view-calc-result" class="view-section">
+            
+            <!-- CALCULATOR PRINT HEADER -->
+            <div class="print-header">
+                <h1>CLINICAL DIABETES RISK REPORT</h1>
+                <p><strong>Patient ID:</strong> <span id="calc-print-id">---</span></p>
+                <p><strong>Date of Analysis:</strong> <span id="calc-print-date">---</span></p>
+            </div>
+
+            <!-- Adjusted internal padding so the entire box stays neatly contained on screen -->
+            <div class="glass-island p-6 pt-8 w-full max-w-[420px] flex flex-col items-center">
+                <div id="calc-icon-bg" class="w-16 h-16 rounded-full flex items-center justify-center mb-4 shadow-xl transition-colors duration-500">
+                    <i id="calc-icon" data-lucide="activity" class="w-8 h-8 text-white"></i>
+                </div>
+                
+                <!-- ALLIGNED CENTERED DIAGNOSIS TEXTS (w-full block mx-auto forces strict text centering) -->
+                <h2 id="calc-diagnosis" class="text-3xl font-bold mb-2 text-center tracking-tight w-full block mx-auto">--</h2>
+                <p id="calc-severity" class="sub-label text-blue-600 dark:text-blue-400 mb-4 font-black text-xs text-center w-full block mx-auto">--</p>
+                <p id="calc-desc" class="text-sm opacity-80 mb-6 font-medium text-center leading-relaxed w-full block mx-auto">--</p>
+
+                <!-- DIABETES DETAILED PRINT SECTION -->
+                <div class="print-details w-full" id="calc-print-medical-details">
+                    <h3>Biomarker Analysis</h3>
+                    <p id="calc-print-analysis">---</p>
+                    
+                    <h3>Dietary Recommendations</h3>
+                    <p id="calc-print-foods">---</p>
+                    
+                    <h3>Lifestyle & Maintenance</h3>
+                    <p id="calc-print-lifestyle">---</p>
+
+                    <h3>Medical Interventions & Medicines</h3>
+                    <p id="calc-print-meds">---</p>
+                </div>
+
+                <!-- ADDED PRINT OPTION BUTTONS -->
+                <div class="flex gap-3 w-full mb-3 print-hide">
+                    <!-- TIMEOUT ENTIRELY REMOVED to prevent "automatic printing" blocks -->
+                    <button onclick="window.print()" class="flex-[1] py-3.5 rounded-2xl bg-blue-500/10 hover:bg-blue-500/20 text-blue-700 dark:text-blue-300 font-bold text-sm border border-blue-500/20 transition-all">
+                        <i data-lucide="printer" class="w-4 h-4 inline-block -mt-0.5 mr-1"></i> Print Report
+                    </button>
+                </div>
+                
+                <!-- NEW: Hooks into resetCalculator to clear the form on close -->
+                <button onclick="resetCalculator()" class="w-full py-4 rounded-2xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-base shadow-xl active:scale-95 transition-all print-hide">
+                    Done
+                </button>
+            </div>
+        </div>
+
+        <!-- FULL SCREEN IMAGE MODAL -->
+        <div id="image-modal" class="hidden fixed inset-0 z-[200] flex items-center justify-center p-6">
+            <div class="absolute inset-0 bg-black/80 backdrop-blur-xl" onclick="closeImageModal()"></div>
+            
+            <div class="relative w-full max-w-[420px] modal-glass p-6 flex flex-col items-center">
+                <button onclick="closeImageModal()" class="absolute top-4 right-4 p-2.5 bg-white/10 hover:bg-white/20 rounded-full backdrop-blur text-white transition-all z-50">
+                    <i data-lucide="x" class="w-5 h-5"></i>
+                </button>
+
+                <div class="w-full flex justify-center items-center mb-6 mt-2">
+                    <h3 class="text-white font-bold text-lg tracking-wider">Image Inspection</h3>
+                </div>
+
+                <div class="relative w-full aspect-square rounded-[1.5rem] overflow-hidden border-2 border-white/20 shadow-inner bg-black cursor-crosshair" 
+                     onmouseenter="showModalMagnifier(true)" 
+                     onmouseleave="showModalMagnifier(false)" 
+                     onmousemove="moveModalMagnifier(event)" 
+                     ontouchmove="moveModalMagnifier(event)">
+                    <div id="modal-magnifier-glass" class="img-magnifier-glass"></div>
+                    <img id="modal-photo" src="" class="w-full h-full object-cover transition-opacity duration-300" />
+                </div>
+
+                <button onclick="toggleHeatmap()" id="btn-modal-heatmap" class="mt-6 w-full py-4 rounded-2xl bg-purple-500/20 hover:bg-purple-500/30 text-white font-bold text-sm border border-purple-500/30 transition-all hidden shadow-lg shadow-purple-500/10">
+                    <i data-lucide="eye" class="w-4 h-4 inline-block -mt-0.5 mr-1"></i> Toggle AI Heatmap
+                </button>
+            </div>
+        </div>
+
+    </main>
+
+    <script>
+        // --- Core UI Logic ---
+        window.addEventListener('DOMContentLoaded', () => {
+            const isDark = document.documentElement.classList.contains('dark');
+            const metaTheme = document.getElementById('theme-color-meta');
+            if (metaTheme) metaTheme.setAttribute('content', isDark ? '#111113' : '#fbf8ff');
+            const icon = document.getElementById('theme-btn-icon');
+            if (icon) icon.setAttribute('data-lucide', isDark ? 'sun' : 'moon');
+            lucide.createIcons();
+        });
+
+        window.addEventListener('load', () => {
+            setTimeout(() => {
+                const loader = document.getElementById('initial-loader');
+                loader.style.opacity = '0';
+                loader.style.pointerEvents = 'none';
+                setTimeout(() => loader.remove(), 600); 
+            }, 1200); 
+        });
+
+        function toggleTheme() {
+            const html = document.documentElement;
+            html.classList.toggle('dark');
+            const isDark = html.classList.contains('dark');
+            try { localStorage.setItem('theme', isDark ? 'dark' : 'light'); } catch (e) {}
+            let metaTheme = document.getElementById('theme-color-meta');
+            if(metaTheme) metaTheme.setAttribute('content', isDark ? '#111113' : '#fbf8ff');
+            const icon = document.getElementById('theme-btn-icon');
+            icon.setAttribute('data-lucide', isDark ? 'sun' : 'moon');
+            lucide.createIcons();
+        }
+
+        function switchView(id) {
+            document.querySelectorAll('.view-section').forEach(v => {
+                v.classList.remove('active');
+                setTimeout(() => { if(!v.classList.contains('active')) v.style.display = 'none'; }, 500);
+            });
+            const target = document.getElementById(id);
+            
+            document.getElementById('theme-toggle-btn').style.display = 'block'; 
+            
+            // Toggle Global Back Button visibility based on current view
+            const backBtn = document.getElementById('global-back-btn');
+            if (id === 'view-calculator') {
+                backBtn.classList.remove('hidden');
+            } else {
+                backBtn.classList.add('hidden');
+            }
+
+            setTimeout(() => { target.style.display = 'flex'; void target.offsetWidth; target.classList.add('active'); }, 500);
+        }
+
+        // --- NEW: Reset Calculator Function ---
+        function resetCalculator() {
+            document.getElementById('diabetes-form').reset();
+            switchView('view-home');
+        }
+
+        // --- DIABETES DYNAMIC REPORT GENERATOR ---
+        function generateDiabetesReport(payload) {
+            let analysis = [];
+            let foods = [];
+            let meds = [];
+            let lifestyle = [];
+
+            let bmi = parseFloat(payload.bmi);
+            if (bmi < 18.5) analysis.push(`• BMI: ${bmi} (Underweight)`);
+            else if (bmi <= 24.9) analysis.push(`• BMI: ${bmi} (Normal)`);
+            else {
+                analysis.push(`• BMI: ${bmi} (Overweight/Obese - HIGH)`);
+                foods.push("- Focus on a caloric deficit using lean proteins, high-fiber vegetables, and whole grains.");
+                lifestyle.push("- Aim for at least 150 minutes of moderate aerobic activity per week for weight management.");
+            }
+
+            let hba1c = parseFloat(payload.HbA1c_level);
+            if (hba1c < 5.7) analysis.push(`• HbA1c Level: ${hba1c}% (Normal)`);
+            else if (hba1c <= 6.4) {
+                analysis.push(`• HbA1c Level: ${hba1c}% (Pre-diabetes range - ELEVATED)`);
+                foods.push("- Reduce refined carbohydrates and sugary drinks. Opt for low-glycemic index (GI) foods.");
+            } else {
+                analysis.push(`• HbA1c Level: ${hba1c}% (Diabetic range - HIGH)`);
+                foods.push("- Strictly monitor carbohydrate intake. Incorporate foods like bitter gourd, fenugreek, and high-fiber greens.");
+                meds.push("- Consult an endocrinologist for potential initiation of oral hypoglycemics (e.g., Metformin) or insulin therapy.");
+            }
+
+            let glucose = parseFloat(payload.blood_glucose_level);
+            if (glucose < 140) analysis.push(`• Blood Glucose: ${glucose} mg/dL (Acceptable)`);
+            else {
+                analysis.push(`• Blood Glucose: ${glucose} mg/dL (ELEVATED)`);
+                lifestyle.push("- Monitor post-meal glucose levels regularly. Stay well hydrated to help kidneys flush excess sugar.");
+                if (meds.length === 0) meds.push("- Discuss glucose-lowering medications with a healthcare provider.");
+            }
+
+            if (payload.hypertension === "1") {
+                analysis.push(`• Hypertension: Present (High Risk Factor)`);
+                foods.push("- Adopt the DASH diet (Dietary Approaches to Stop Hypertension): strictly limit sodium and saturated fats.");
+                meds.push("- Review anti-hypertensive medications (e.g., ACE inhibitors/ARBs) with your cardiologist.");
+            }
+            if (payload.heart_disease === "1") {
+                analysis.push(`• Heart Disease: Present (High Risk Factor)`);
+                lifestyle.push("- Strict cardiovascular monitoring is critical. Consult a cardiologist before engaging in high-intensity exercise.");
+            }
+
+            if(foods.length === 0) foods.push("- Maintain a balanced diet rich in micronutrients to sustain your current healthy metrics.");
+            if(meds.length === 0) meds.push("- No specific anti-diabetic medications are indicated based on these metrics.");
+            if(lifestyle.length === 0) lifestyle.push("- Continue with regular annual check-ups and maintain an active lifestyle.");
+
+            document.getElementById('calc-print-analysis').innerText = analysis.join('\n');
+            document.getElementById('calc-print-foods').innerText = foods.join('\n');
+            document.getElementById('calc-print-meds').innerText = [...new Set(meds)].join('\n');
+            document.getElementById('calc-print-lifestyle').innerText = [...new Set(lifestyle)].join('\n');
+            
+            document.getElementById('calc-print-date').textContent = new Date().toLocaleDateString();
+            document.getElementById('calc-print-id').textContent = 'DBT-' + Math.floor(Math.random() * 900000 + 100000);
+        }
+
+        function submitDiabetesForm(e) {
+            e.preventDefault();
+            const btn = document.getElementById('btn-submit-calc');
+            const originalHTML = btn.innerHTML;
+            btn.innerHTML = `<i data-lucide="loader-2" class="w-5 h-5 animate-spin mx-auto"></i>`;
+            btn.classList.add('opacity-70', 'cursor-not-allowed');
+            lucide.createIcons();
+
+            const payload = {
+                gender: document.getElementById('calc-gender').value,
+                age: document.getElementById('calc-age').value,
+                hypertension: document.getElementById('calc-hyper').value,
+                heart_disease: document.getElementById('calc-heart').value,
+                smoking_history: document.getElementById('calc-smoke').value,
+                bmi: document.getElementById('calc-bmi').value,
+                HbA1c_level: document.getElementById('calc-hba1c').value,
+                blood_glucose_level: document.getElementById('calc-glucose').value
+            };
+
+            fetch('/predict_diabetes', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            })
+            .then(res => res.json())
+            .then(data => {
+                if(data.error) {
+                    const diag = document.getElementById('calc-diagnosis');
+                    diag.textContent = "Error";
+                    document.getElementById('calc-desc').textContent = data.error;
+                    switchView('view-calc-result');
+                } else {
+                    const colors = { 'emerald': 'bg-emerald-500', 'orange': 'bg-orange-500', 'rose': 'bg-rose-500' };
+                    document.getElementById('calc-icon-bg').className = `w-20 h-20 rounded-full flex items-center justify-center mb-6 shadow-xl transition-colors duration-500 ${colors[data.color]}`;
+                    document.getElementById('calc-icon').setAttribute('data-lucide', data.icon);
+                    document.getElementById('calc-diagnosis').textContent = data.diagnosis;
+                    document.getElementById('calc-severity').textContent = data.severity;
+                    document.getElementById('calc-desc').textContent = data.description;
+                    
+                    generateDiabetesReport(payload);
+                    lucide.createIcons();
+                    switchView('view-calc-result');
+                }
+            })
+            .catch(err => {
+                document.getElementById('calc-diagnosis').textContent = "Connection Failed";
+                switchView('view-calc-result');
+            })
+            .finally(() => {
+                btn.innerHTML = originalHTML;
+                btn.classList.remove('opacity-70', 'cursor-not-allowed');
+                lucide.createIcons();
+            });
+        }
+
+        function resetApp() {
+            document.getElementById('file-input').value = '';
+            document.getElementById('btn-upload').classList.remove('disabled');
+            document.getElementById('scanning-section').classList.remove('show');
+            setTimeout(() => {
+                document.getElementById('scanning-section').style.display = 'none';
+                document.getElementById('scan-bar').style.width = '0%';
+            }, 300);
+            isHeatmapShowing = false;
+            switchView('view-home');
+        }
+
+        let originalImageSrc = ''; let heatmapImageSrc = ''; let isHeatmapShowing = false;
+
+        function triggerUpload() { 
+            if(document.getElementById('btn-upload').classList.contains('disabled')) return;
+            document.getElementById('file-input').click(); 
+        }
+        
+        function handleFileSelect(e) { if(e.target.files[0]) processImage(e.target.files[0]); }
+
+        function processImage(fileBlob) {
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                document.getElementById('btn-upload').classList.add('disabled');
+                originalImageSrc = e.target.result;
+                document.getElementById('scan-preview').src = originalImageSrc;
+                document.getElementById('result-photo').src = originalImageSrc;
+                const scanSection = document.getElementById('scanning-section');
+                scanSection.style.display = 'flex';
+                setTimeout(() => { scanSection.classList.add('show'); scanSection.scrollIntoView({ behavior: 'smooth', block: 'center' }); }, 50);
+                simulateScanProgress();
+
+                const formData = new FormData();
+                formData.append('image', fileBlob, 'scan.jpg');
+                
+                fetch('/analyze', { method: 'POST', body: formData })
+                    .then(r => r.json())
+                    .then(data => setTimeout(() => showResult(data), 3200))
+                    .catch(err => { resetApp(); });
+            };
+            reader.readAsDataURL(fileBlob);
+        }
+
+        function simulateScanProgress() {
+            const bar = document.getElementById('scan-bar'); const status = document.getElementById('scan-status'); const detail = document.getElementById('scan-detail');
+            const steps = [
+                { s: "Preprocessing", d: "Isolating Green Channel...", w: "30%" },
+                { s: "Segmentation", d: "Mapping Vascular Geometry...", w: "65%" },
+                { s: "AI Processing", d: "Generating Diagnosis & Heatmap...", w: "95%" },
+                { s: "Finalizing", d: "Structuring Report...", w: "100%" }
+            ];
+            steps.forEach((step, i) => { setTimeout(() => { status.innerText = step.s; detail.innerText = step.d; bar.style.width = step.w; }, i * 800); });
+        }
+
+        const medicalDatabase = {
+            "No DR": {
+                desc: "STAGE: NORMAL (No Diabetic Retinopathy).\n\nVISUAL EVIDENCE: The AI identified a healthy vascular structure. No microaneurysms, hemorrhages, or hard exudates were detected in the provided retinal image.",
+                prevention: "Maintain strict control of blood sugar (HbA1c levels), blood pressure, and cholesterol. Continue a healthy diet, regular exercise routines, and avoid smoking.",
+                meds: "No specific ocular medications or procedures are indicated at this time. Routine annual retinal screening is highly recommended."
+            },
+            "Mild DR": {
+                desc: "STAGE: MILD NPDR (Nonproliferative Diabetic Retinopathy).\n\nVISUAL EVIDENCE: The AI detected the presence of microaneurysms (small red dots indicating localized blood vessel ballooning) in the retinal image, which is the primary visual marker for this early stage of DR.",
+                prevention: "The most effective way to prevent progression to more severe stages is strict glycemic and hypertension control. A follow-up comprehensive dilated eye exam should occur in 6 to 12 months.",
+                meds: "Systemic management of diabetes is the primary treatment. Intraocular injections (Anti-VEGF) or laser therapies are typically not required at this early stage."
+            },
+            "Moderate DR": {
+                desc: "STAGE: MODERATE NPDR (Nonproliferative Diabetic Retinopathy).\n\nVISUAL EVIDENCE: The AI identified a combination of microaneurysms, dot-and-blot hemorrhages, and possible hard exudates (yellowish lipid deposits) in the image, indicating moderate vascular blockage typical of Moderate NPDR.",
+                prevention: "Refer to a specialized ophthalmologist for closer monitoring. Lifestyle modifications must be strictly adhered to, optimizing diabetes management to slow further vascular deterioration.",
+                meds: "Depending on the presence of Diabetic Macular Edema (DME), a doctor may consider the initiation of Anti-VEGF injection therapy (e.g., Lucentis, Eylea) or steroid treatments."
+            },
+            "Severe DR": {
+                desc: "STAGE: SEVERE NPDR (Nonproliferative Diabetic Retinopathy).\n\nVISUAL EVIDENCE: The AI detected widespread intraretinal hemorrhages, venous beading, and significant vascular abnormalities across multiple quadrants of the image, strongly indicating Severe NPDR and severe ischemia.",
+                prevention: "Immediate intervention is required. Patients are at a very high risk of vision loss. Heavy restriction on strenuous activities may be advised to prevent spontaneous hemorrhaging.",
+                meds: "Treatment often involves Anti-VEGF injections. Panretinal photocoagulation (PRP) laser surgery may be preemptively performed to shrink blood vessels and prevent transition to the proliferative stage."
+            },
+            "Proliferative DR": {
+                desc: "STAGE: PROLIFERATIVE DIABETIC RETINOPATHY (PDR).\n\nVISUAL EVIDENCE: The AI detected signs of neovascularization (abnormal new blood vessel growth) and/or preretinal hemorrhage in the image, which are the definitive visual markers for the most advanced stage, Proliferative DR.",
+                prevention: "Emergency ophthalmologist consultation required. Failure to act can lead to tractional retinal detachment and permanent blindness. Complete cessation of heavy lifting.",
+                meds: "Aggressive Anti-VEGF therapy and widespread Panretinal Photocoagulation (laser surgery) are standard. If extensive bleeding or detachment has occurred, a surgical vitrectomy is required to physically remove blood from the eye."
+            },
+            "Invalid Scan": {
+                desc: "The AI was unable to accurately identify the anatomical structure of a retina in the uploaded image.",
+                prevention: "Ensure that the camera lens is perfectly aligned with the pupil. Use the device flashlight to properly illuminate the fundus, minimizing external glare.",
+                meds: "N/A - Please retake the image."
+            }
+        };
+
+        function showResult(data) {
+            const colors = { 'emerald': 'bg-emerald-500', 'yellow': 'bg-yellow-500', 'orange': 'bg-orange-500', 'rose': 'bg-rose-500', 'purple': 'bg-purple-600' };
+            document.getElementById('result-icon-bg').className = `w-14 h-14 rounded-[1.5rem] flex items-center justify-center mb-3 shadow-xl ${colors[data.color] || 'bg-purple-600'}`;
+            document.getElementById('result-icon').setAttribute('data-lucide', data.icon);
+            document.getElementById('result-diagnosis').textContent = data.diagnosis;
+            document.getElementById('result-severity').textContent = data.severity;
+            document.getElementById('result-desc').textContent = data.description;
+            document.getElementById('result-conf').textContent = data.confidence;
+            
+            const medInfo = medicalDatabase[data.diagnosis] || medicalDatabase["Invalid Scan"];
+            document.getElementById('print-desc-long').textContent = medInfo.desc;
+            document.getElementById('print-prevention').textContent = medInfo.prevention;
+            document.getElementById('print-meds').textContent = medInfo.meds;
+            document.getElementById('result-action').textContent = medInfo.prevention; 
+
+            document.getElementById('print-date').textContent = new Date().toLocaleDateString();
+            document.getElementById('print-id').textContent = 'SCN-' + Math.floor(Math.random() * 900000 + 100000);
+
+            if (data.heatmap_b64) {
+                heatmapImageSrc = "data:image/jpeg;base64," + data.heatmap_b64;
+                document.getElementById('btn-main-heatmap').classList.remove('hidden');
+                document.getElementById('btn-modal-heatmap').classList.remove('hidden');
+            } else {
+                document.getElementById('btn-main-heatmap').classList.add('hidden');
+                document.getElementById('btn-modal-heatmap').classList.add('hidden');
+            }
+
+            lucide.createIcons();
+            switchView('view-result');
+        }
+
+        function toggleHeatmap() {
+            isHeatmapShowing = !isHeatmapShowing;
+            const mainImg = document.getElementById('result-photo');
+            const modalImg = document.getElementById('modal-photo');
+            const mainBtn = document.getElementById('btn-main-heatmap');
+            const modalBtn = document.getElementById('btn-modal-heatmap');
+            const targetSrc = isHeatmapShowing ? heatmapImageSrc : originalImageSrc;
+            mainImg.style.opacity = '0';
+            modalImg.style.opacity = '0';
+            
+            setTimeout(() => {
+                mainImg.src = targetSrc;
+                modalImg.src = targetSrc;
+                mainImg.style.opacity = '1';
+                modalImg.style.opacity = '1';
+                setTimeout(() => {
+                    if(!document.getElementById('image-modal').classList.contains('hidden')) {
+                        setupModalMagnifier();
+                    }
+                }, 50);
+            }, 300);
+
+            if(isHeatmapShowing) {
+                mainBtn.classList.add('bg-purple-500', 'text-white'); 
+                mainBtn.classList.remove('bg-purple-500/10', 'text-purple-700', 'dark:text-purple-300');
+                mainBtn.innerHTML = `<i data-lucide="eye-off" class="w-4 h-4 inline-block -mt-0.5 mr-1"></i> Original`;
+                modalBtn.classList.add('bg-purple-500', 'text-white'); 
+                modalBtn.classList.remove('bg-purple-500/20', 'text-white');
+                modalBtn.innerHTML = `<i data-lucide="eye-off" class="w-4 h-4 inline-block -mt-0.5 mr-1"></i> Hide AI Heatmap`;
+            } else {
+                mainBtn.classList.remove('bg-purple-500', 'text-white'); 
+                mainBtn.classList.add('bg-purple-500/10', 'text-purple-700', 'dark:text-purple-300');
+                mainBtn.innerHTML = `<i data-lucide="eye" class="w-4 h-4 inline-block -mt-0.5 mr-1"></i> Heatmap`;
+                modalBtn.classList.remove('bg-purple-500', 'text-white'); 
+                modalBtn.classList.add('bg-purple-500/20', 'text-white');
+                modalBtn.innerHTML = `<i data-lucide="eye" class="w-4 h-4 inline-block -mt-0.5 mr-1"></i> Toggle AI Heatmap`;
+            }
+            lucide.createIcons();
+        }
+
+        function openImageModal() {
+            if(window.matchMedia('print').matches) return;
+            const modal = document.getElementById('image-modal');
+            const modalImg = document.getElementById('modal-photo');
+            modalImg.src = isHeatmapShowing ? heatmapImageSrc : originalImageSrc;
+            modal.classList.remove('hidden');
+            setTimeout(setupModalMagnifier, 150);
+        }
+        
+        function closeImageModal() {
+            document.getElementById('image-modal').classList.add('hidden');
+        }
+
+        let zoomLevel = 2.5;
+        function setupModalMagnifier() {
+            const img = document.getElementById('modal-photo');
+            const glass = document.getElementById('modal-magnifier-glass');
+            glass.style.backgroundImage = "url('" + img.src + "')";
+            glass.style.backgroundRepeat = "no-repeat";
+            glass.style.backgroundSize = (img.clientWidth * zoomLevel) + "px " + (img.clientHeight * zoomLevel) + "px";
+        }
+
+        function showModalMagnifier(show) {
+            document.getElementById('modal-magnifier-glass').style.display = show ? "block" : "none";
+        }
+
+        function moveModalMagnifier(e) {
+            e.preventDefault();
+            const img = document.getElementById('modal-photo');
+            const glass = document.getElementById('modal-magnifier-glass');
+            const pos = getCursorPos(e, img);
+            let x = pos.x; let y = pos.y;
+            let w = glass.offsetWidth / 2; let h = glass.offsetHeight / 2;
+            let bw = 3; 
+            if (x > img.clientWidth) { x = img.clientWidth; }
+            if (x < 0) { x = 0; }
+            if (y > img.clientHeight) { y = img.clientHeight; }
+            if (y < 0) { y = 0; }
+            glass.style.left = (x - w) + "px";
+            glass.style.top = (y - h) + "px";
+            glass.style.backgroundPosition = "-" + ((x * zoomLevel) - w + bw) + "px -" + ((y * zoomLevel) - h + bw) + "px";
+        }
+
+        function getCursorPos(e, img) {
+            let a = img.getBoundingClientRect();
+            let x = e.pageX - a.left - window.scrollX;
+            let y = e.pageY - a.top - window.scrollY;
+            if (e.touches && e.touches.length > 0) {
+                x = e.touches[0].pageX - a.left - window.scrollX;
+                y = e.touches[0].pageY - a.top - window.scrollY;
+            }
+            return {x : x, y : y};
+        }
+    </script>
+</body>
+</html>
