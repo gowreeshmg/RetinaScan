@@ -1,11 +1,3 @@
----
-title: RetinaScan
-emoji: 🏃
-colorFrom: yellow
-colorTo: green
-sdk: docker
-pinned: false
-license: openrail
----
+check out the web apps trained backend models at https://drive.google.com/drive/folders/10trrYZ_JDvmjbTnaCryILAyLyjc7RC_X?usp=drive_link
 
-Check out the configuration reference at https://huggingface.co/docs/hub/spaces-config-reference
+Check out the working web app at https://webapp1-retinascan.hf.space/
